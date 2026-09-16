@@ -20,17 +20,11 @@ public class HierarchyAndEvaluationTests
     private static EvaluationController Controller(AppDbContext db, int employeeId)
     {
         var c = new EvaluationController(db, new PerformanceService(db), new ExcelService());
-        c.ControllerContext = new ControllerContext
-        {
-            HttpContext = new DefaultHttpContext
-            {
-                User = new ClaimsPrincipal(new ClaimsIdentity([new Claim("EmployeeId", employeeId.ToString())], "Test"))
-            }
-        };
+        c.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity([new Claim("EmployeeId", employeeId.ToString())], "Test")) } };
         return c;
     }
 
-    private static async Task<(int a, int b, int c, int d, int positionId, int periodId, int q1, int q2)> SeedScenario(AppDbContext db)
+    private static async Task<(int a, int b, int c, int d, int positionId, int periodId, int q1, int q2)> SeedScenario(AppDbContext db, bool periodOpen = true, bool periodCurrentlyEditable = true)
     {
         var unit = new OrgUnit { Code = "U1", Title = "واحد آزمون" };
         var position = new Position { Code = "P1", Title = "رده آزمون" };
@@ -44,8 +38,10 @@ public class HierarchyAndEvaluationTests
         var d = new Employee { PersonnelNo = "400", FullName = "کارمند زیرمجموعه دوم", PositionId = position.Id, UnitId = unit.Id, IsEvaluator = false };
         db.Employees.AddRange(a, b, c, d); await db.SaveChangesAsync();
         b.SupervisorId = a.Id; c.SupervisorId = b.Id; d.SupervisorId = c.Id;
-        var start = DateTime.Now.AddHours(-1); var end = DateTime.Now.AddHours(1);
-        var period = new EvaluationPeriod { Title = "آزمون ماهانه", StartJalali = PerformanceService.ToJalali(start), EndJalali = PerformanceService.ToJalali(end), StartAt = start, EndAt = end, IsOpen = true };
+        DateTime start, end;
+        if (periodCurrentlyEditable) { start = DateTime.Now.AddHours(-1); end = DateTime.Now.AddHours(1); }
+        else { start = DateTime.Now.AddHours(-2); end = DateTime.Now.AddHours(-1); }
+        var period = new EvaluationPeriod { Title = "آزمون ماهانه", StartJalali = PerformanceService.ToJalali(start), EndJalali = PerformanceService.ToJalali(end), StartAt = start, EndAt = end, IsOpen = periodOpen };
         db.Periods.Add(period); await db.SaveChangesAsync();
         return (a.Id, b.Id, c.Id, d.Id, position.Id, period.Id, q1.Id, q2.Id);
     }
@@ -63,22 +59,11 @@ public class HierarchyAndEvaluationTests
     public async Task Previous_evaluator_scores_are_visible_and_upper_evaluator_can_change_them_with_history()
     {
         await using var db = CreateDb(); var s = await SeedScenario(db);
-        var first = await Controller(db, s.b).Form(new EvaluationController.FormPost
-        {
-            EmployeeId = s.c, PositionId = s.positionId,
-            Scores = new Dictionary<int, decimal> { [s.q1] = 8, [s.q2] = 18 },
-            Comments = new Dictionary<int, string> { [s.q1] = "ارزیابی اولیه" }
-        });
+        var first = await Controller(db, s.b).Form(new EvaluationController.FormPost { EmployeeId = s.c, PositionId = s.positionId, Scores = new Dictionary<int, decimal> { [s.q1] = 8, [s.q2] = 18 }, Comments = new Dictionary<int, string> { [s.q1] = "ارزیابی اولیه" } });
         Assert.IsType<RedirectToActionResult>(first);
         var ev = await db.Evaluations.Include(x => x.Scores).SingleAsync(x => x.PeriodId == s.periodId && x.EmployeeId == s.c);
         Assert.Equal(s.b, ev.EvaluatorId); Assert.Equal(s.b, ev.OriginalEvaluatorId); Assert.Equal(26m, ev.Scores.Sum(x => x.Score));
-
-        var second = await Controller(db, s.a).Form(new EvaluationController.FormPost
-        {
-            EmployeeId = s.c, PositionId = s.positionId,
-            Scores = new Dictionary<int, decimal> { [s.q1] = 9, [s.q2] = 20 },
-            Comments = new Dictionary<int, string> { [s.q1] = "بازنگری ارزیاب بالادست" }
-        });
+        var second = await Controller(db, s.a).Form(new EvaluationController.FormPost { EmployeeId = s.c, PositionId = s.positionId, Scores = new Dictionary<int, decimal> { [s.q1] = 9, [s.q2] = 20 }, Comments = new Dictionary<int, string> { [s.q1] = "بازنگری ارزیاب بالادست" } });
         Assert.IsType<RedirectToActionResult>(second);
         ev = await db.Evaluations.Include(x => x.Scores).SingleAsync(x => x.Id == ev.Id);
         Assert.Equal(s.a, ev.EvaluatorId); Assert.Equal(s.b, ev.OriginalEvaluatorId); Assert.Equal(29m, ev.Scores.Sum(x => x.Score));
@@ -114,5 +99,13 @@ public class HierarchyAndEvaluationTests
         await using var db = CreateDb(); var s = await SeedScenario(db);
         var result = await Controller(db, s.b).Form(new EvaluationController.FormPost { EmployeeId = s.c, PositionId = s.positionId, Scores = new Dictionary<int, decimal> { [s.q1] = 11, [s.q2] = 20 } });
         Assert.IsType<ViewResult>(result); Assert.Empty(await db.Evaluations.ToListAsync()); Assert.Empty(await db.ScoreHistory.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Evaluation_window_is_read_only_after_end()
+    {
+        await using var db = CreateDb(); var s = await SeedScenario(db, periodCurrentlyEditable: false);
+        var result = await Controller(db, s.b).Form(new EvaluationController.FormPost { EmployeeId = s.c, PositionId = s.positionId, Scores = new Dictionary<int, decimal> { [s.q1] = 10, [s.q2] = 20 } });
+        Assert.IsType<BadRequestObjectResult>(result); Assert.Empty(await db.Evaluations.ToListAsync());
     }
 }
