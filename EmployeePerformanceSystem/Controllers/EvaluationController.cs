@@ -14,7 +14,6 @@ public class EvaluationController(AppDbContext db, PerformanceService ps, ExcelS
         if (!int.TryParse(User.FindFirstValue("EmployeeId"), out var eid) || !await ps.IsEvaluator(eid)) return Forbid();
         var p = await ps.CurrentPeriod();
         if (p == null) return View(new List<Row>());
-
         var employees = await ps.GetSubordinates(eid);
         var ids = employees.Select(x => x.Id).ToList();
         var evaluations = await db.Evaluations.AsNoTracking().Where(x => x.PeriodId == p.Id && ids.Contains(x.EmployeeId)).ToListAsync();
@@ -24,15 +23,13 @@ public class EvaluationController(AppDbContext db, PerformanceService ps, ExcelS
         var maxByPosition = await db.Questions.AsNoTracking().Where(x => x.IsActive && positionIds.Contains(x.PositionId)).GroupBy(x => x.PositionId).Select(g => new { PositionId = g.Key, Max = g.Sum(x => x.MaxScore) }).ToDictionaryAsync(x => x.PositionId, x => x.Max);
         var evaluatorIds = evaluations.Select(x => x.EvaluatorId).Distinct().ToList();
         var evaluatorNames = await db.Employees.AsNoTracking().Where(x => evaluatorIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName);
-
         var rows = employees.Select(x =>
         {
             var ev = evaluations.FirstOrDefault(e => e.EmployeeId == x.Id);
             var max = maxByPosition.GetValueOrDefault(x.PositionId, 0m);
             var total = ev == null ? 0m : totals.GetValueOrDefault(ev.Id, 0m);
             var percentage = max > 0 ? Math.Round(total * 100m / max, 2) : 0m;
-            return new Row(x.Id, x.FullName, x.PersonnelNo, x.Position?.Title ?? "", x.Unit?.Title ?? "", x.IsEvaluator,
-                ev?.Status.ToString() ?? "ثبت نشده", total, max, percentage, ev == null ? "-" : evaluatorNames.GetValueOrDefault(ev.EvaluatorId, "-"));
+            return new Row(x.Id, x.FullName, x.PersonnelNo, x.Position?.Title ?? "", x.Unit?.Title ?? "", x.IsEvaluator, ev?.Status.ToString() ?? "ثبت نشده", total, max, percentage, ev == null ? "-" : evaluatorNames.GetValueOrDefault(ev.EvaluatorId, "-"));
         }).ToList();
         return View(rows);
     }
@@ -55,13 +52,11 @@ public class EvaluationController(AppDbContext db, PerformanceService ps, ExcelS
         if (p == null) return NotFound();
         var employee = await db.Employees.Include(x => x.Position).FirstOrDefaultAsync(x => x.Id == id && x.IsActive);
         if (employee == null || !await ps.CanEvaluate(actor, id)) return Forbid();
-
         var ev = await db.Evaluations.Include(x => x.Scores).SingleOrDefaultAsync(x => x.PeriodId == p.Id && x.EmployeeId == id);
         var questions = await Questions(employee.PositionId);
-        var history = ev == null ? [] : await History(ev.Id);
+        var history = ev == null ? new List<HistoryRow>() : await History(ev.Id);
         if (ev != null && !await ps.CanReviewEvaluation(actor, ev))
             return View(new FormVm(p, employee, questions, ev, false, "این ارزیابی قبلاً توسط ارزیاب بالادست بازنگری شده و شما فقط مجاز به مشاهده آن هستید.", history));
-
         var canEdit = await ps.CanEdit(p) && (ev == null || await ps.CanReviewEvaluation(actor, ev));
         var note = !await ps.CanEdit(p) ? "بازه ارزیابی پایان یافته است؛ اطلاعات این دوره فقط قابل مشاهده است." : null;
         return View(new FormVm(p, employee, questions, ev, canEdit, note, history));
@@ -75,11 +70,9 @@ public class EvaluationController(AppDbContext db, PerformanceService ps, ExcelS
         var p = await ps.CurrentPeriod();
         if (p == null) return NotFound();
         if (!await ps.CanEdit(p)) return BadRequest("بازه ارزیابی پایان یافته است و امکان تغییر وجود ندارد.");
-
         var employee = await db.Employees.Include(x => x.Position).FirstOrDefaultAsync(x => x.Id == m.EmployeeId && x.IsActive);
         if (employee == null) return NotFound();
         if (!await ps.CanEvaluate(actor, employee.Id)) return Forbid();
-
         var ev = await db.Evaluations.Include(x => x.Scores).SingleOrDefaultAsync(x => x.PeriodId == p.Id && x.EmployeeId == employee.Id);
         var isNew = ev == null;
         if (isNew)
@@ -88,7 +81,6 @@ public class EvaluationController(AppDbContext db, PerformanceService ps, ExcelS
             db.Evaluations.Add(ev);
         }
         else if (!await ps.CanReviewEvaluation(actor, ev!)) return Forbid();
-
         var qs = await Questions(employee.PositionId);
         foreach (var q in qs)
         {
@@ -108,13 +100,11 @@ public class EvaluationController(AppDbContext db, PerformanceService ps, ExcelS
                 old.Score = score; old.Comment = comment; old.UpdatedAt = DateTime.UtcNow;
             }
         }
-
         if (!ModelState.IsValid)
         {
-            var history = ev.Id > 0 ? await History(ev.Id) : [];
+            var history = ev.Id > 0 ? await History(ev.Id) : new List<HistoryRow>();
             return View("Form", new FormVm(p, employee, qs, ev, true, "برخی امتیازها نامعتبر هستند؛ لطفاً موارد مشخص‌شده را اصلاح کنید.", history));
         }
-
         if (ev!.EvaluatorId != actor)
         {
             db.EvaluatorHistory.Add(new EvaluatorChangeHistory { EvaluationId = ev.Id, PreviousEvaluatorId = ev.EvaluatorId, NewEvaluatorId = actor, ChangedBy = actor, Reason = "بازنگری ارزیاب بالادست" });
@@ -129,7 +119,6 @@ public class EvaluationController(AppDbContext db, PerformanceService ps, ExcelS
 
     private Task<List<Question>> Questions(int positionId) => db.Questions.Where(x => x.PositionId == positionId && x.IsActive).OrderBy(x => x.SortOrder).ToListAsync();
     private Task<List<HistoryRow>> History(int evaluationId) => db.ScoreHistory.AsNoTracking().Where(x => x.EvaluationId == evaluationId).OrderByDescending(x => x.ChangedAt).Select(x => new HistoryRow(x.QuestionId, x.OldScore, x.NewScore, x.ChangedBy, x.ChangedAt, x.Reason)).ToListAsync();
-
     public record FormVm(EvaluationPeriod Period, Employee Employee, List<Question> Questions, Evaluation? Evaluation, bool CanEdit, string? Notice, List<HistoryRow> History);
     public record HistoryRow(int QuestionId, decimal OldScore, decimal NewScore, int ChangedBy, DateTime ChangedAt, string Reason);
     public class FormPost
