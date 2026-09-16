@@ -25,18 +25,12 @@ public class PerformanceService(AppDbContext db)
     public Task<bool> CanEdit(EvaluationPeriod p)
         => Task.FromResult(p.IsOpen && DateTime.Now >= p.StartAt && DateTime.Now <= p.EndAt);
 
-    /// <summary>
-    /// Complete active organizational subtree below an evaluator.
-    /// This enables an evaluator higher in the hierarchy to review the complete
-    /// subtree of a subordinate evaluator, not only the direct report.
-    /// </summary>
     public async Task<List<Employee>> GetSubordinates(int evaluatorId)
     {
         var employees = await db.Employees.Where(x => x.IsActive)
             .Include(x => x.Position).Include(x => x.Unit).AsNoTracking().ToListAsync();
         var bySupervisor = employees.Where(x => x.SupervisorId.HasValue)
             .GroupBy(x => x.SupervisorId!.Value).ToDictionary(g => g.Key, g => g.ToList());
-
         var result = new List<Employee>();
         var queue = new Queue<int>();
         queue.Enqueue(evaluatorId);
@@ -62,14 +56,15 @@ public class PerformanceService(AppDbContext db)
         => evaluatorId != employeeId && (await GetSubordinates(evaluatorId)).Any(x => x.Id == employeeId);
 
     /// <summary>
-    /// The current evaluator or any evaluator above the employee in the organization
-    /// tree may review. The actor must itself be an active evaluator.
+    /// Only the current evaluator or an evaluator above the current evaluator may
+    /// edit an evaluation. Once an upper-level evaluator takes ownership, the
+    /// previous lower-level evaluator can no longer overwrite that decision.
     /// </summary>
     public async Task<bool> CanReviewEvaluation(int actorId, Evaluation ev)
     {
         if (!await IsEvaluator(actorId)) return false;
         if (actorId == ev.EvaluatorId) return true;
-        return await IsAncestor(actorId, ev.EmployeeId);
+        return await IsAncestor(actorId, ev.EvaluatorId);
     }
 
     public async Task<bool> IsEvaluator(int employeeId)
