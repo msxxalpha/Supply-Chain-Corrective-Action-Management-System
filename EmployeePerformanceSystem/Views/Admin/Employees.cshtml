@@ -1,1 +1,4 @@
-<h2>کارکنان</h2>
+@model List<Indamin.Performance.Data.Employee>
+@{ViewData["Title"]="کارکنان";}
+<div class="d-flex justify-content-between align-items-center mb-3"><div><h2>مدیریت کارکنان</h2><div class="text-muted">اطلاعات پایه و سلسله‌مراتب ارزیابی</div></div><div class="d-flex gap-2"><a class="btn btn-success" href="/Admin/ImportEmployees">ورود Excel</a><a class="btn btn-outline-success" href="/Admin/ExportEmployees">خروجی Excel</a></div></div>
+<div class="cardx"><form class="row g-2 mb-3"><div class="col-md-5"><input class="form-control" name="q" placeholder="جستجوی نام یا کد پرسنلی"></div><div class="col-md-2"><button class="btn btn-main">فیلتر</button></div></form><div class="table-responsive"><table class="table"><thead><tr><th>کد</th><th>نام</th><th>رده پستی</th><th>واحد</th><th>ارزیاب</th><th>سرپرست</th></tr></thead><tbody>@foreach(var e in Model){<tr><td>@e.PersonnelNo</td><td>@e.FullName</td><td>@e.Position?.Title</td><td>@e.Unit?.Title</td><td>@(e.IsEvaluator?"بله":"خیر")</td><td>@e.SupervisorId</td></tr>}</tbody></table></div></div>
