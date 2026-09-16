@@ -1,0 +1,6 @@
+using Microsoft.EntityFrameworkCore;
+namespace Indamin.Performance.Data;
+public class AppDbContext(DbContextOptions<AppDbContext> o):DbContext(o){
+ public DbSet<Employee> Employees=>Set<Employee>(); public DbSet<Position> Positions=>Set<Position>(); public DbSet<Question> Questions=>Set<Question>(); public DbSet<OrgUnit> OrgUnits=>Set<OrgUnit>(); public DbSet<EvaluationPeriod> Periods=>Set<EvaluationPeriod>(); public DbSet<Evaluation> Evaluations=>Set<Evaluation>(); public DbSet<EvaluationScore> Scores=>Set<EvaluationScore>(); public DbSet<EvaluationScoreHistory> ScoreHistory=>Set<EvaluationScoreHistory>(); public DbSet<AuditLog> AuditLogs=>Set<AuditLog>();
+ protected override void OnModelCreating(ModelBuilder b){b.Entity<Employee>().HasIndex(x=>x.PersonnelNo).IsUnique(); b.Entity<Employee>().HasOne<Position>().WithMany().HasForeignKey(x=>x.PositionId); b.Entity<Employee>().HasOne<OrgUnit>().WithMany().HasForeignKey(x=>x.UnitId); b.Entity<Question>().HasOne<Position>().WithMany(x=>x.Questions).HasForeignKey(x=>x.PositionId); b.Entity<Evaluation>().HasIndex(x=>new{x.PeriodId,x.EmployeeId}).IsUnique(); b.Entity<EvaluationScore>().HasIndex(x=>new{x.EvaluationId,x.QuestionId}).IsUnique(); }
+}

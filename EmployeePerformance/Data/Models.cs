@@ -1,0 +1,11 @@
+namespace Indamin.Performance.Data;
+public class Employee { public int Id{get;set;} public string PersonnelNo{get;set;}=""; public string FullName{get;set;}=""; public int PositionId{get;set;} public int UnitId{get;set;} public bool IsEvaluator{get;set;} public int? SupervisorId{get;set;} public bool IsActive{get;set;}=true; }
+public class Position { public int Id{get;set;} public string Title{get;set;}=""; public decimal MaxScore{get;set;} public List<Question> Questions{get;set;}=[]; }
+public class Question { public int Id{get;set;} public int PositionId{get;set;} public string Text{get;set;}=""; public decimal MaxScore{get;set;} public int Order{get;set;} }
+public class OrgUnit { public int Id{get;set;} public string Title{get;set;}=""; public int? ParentId{get;set;} }
+public class EvaluationPeriod { public int Id{get;set;} public string Title{get;set;}=""; public string StartDatePersian{get;set;}=""; public string EndDatePersian{get;set;}=""; public DateTime StartDate{get;set;} public DateTime EndDate{get;set;} public bool IsActive{get;set;}=true; }
+public class Evaluation { public int Id{get;set;} public int PeriodId{get;set;} public int EmployeeId{get;set;} public int EvaluatorId{get;set;} public DateTime CreatedAt{get;set;}=DateTime.UtcNow; public DateTime UpdatedAt{get;set;}=DateTime.UtcNow; public List<EvaluationScore> Scores{get;set;}=[]; }
+public class EvaluationScore { public int Id{get;set;} public int EvaluationId{get;set;} public int QuestionId{get;set;} public decimal Score{get;set;} public string? Comment{get;set;} }
+public class EvaluationScoreHistory { public long Id{get;set;} public int EvaluationId{get;set;} public int QuestionId{get;set;} public decimal OldScore{get;set;} public decimal NewScore{get;set;} public int ChangedBy{get;set;} public DateTime ChangedAt{get;set;}=DateTime.UtcNow; }
+public class AuditLog { public long Id{get;set;} public string Action{get;set;}=""; public string Entity{get;set;}=""; public string EntityId{get;set;}=""; public string? Details{get;set;} public DateTime CreatedAt{get;set;}=DateTime.UtcNow; }
+public class PerformanceService { public static decimal Total(IEnumerable<EvaluationScore> scores)=>scores.Sum(x=>x.Score); }
