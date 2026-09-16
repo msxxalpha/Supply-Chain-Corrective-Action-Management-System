@@ -9,7 +9,8 @@ public class PerformanceService(AppDbContext db)
         var p = value.Replace('-', '/').Split('/');
         if (p.Length != 3) throw new ArgumentException("تاریخ شمسی نامعتبر است.");
         var pc = new PersianCalendar();
-        return pc.ToDateTime(int.Parse(p[0]), int.Parse(p[1]), int.Parse(p[2]), 0, 0, 0, 0, DateTimeKind.Local);
+        var result = pc.ToDateTime(int.Parse(p[0]), int.Parse(p[1]), int.Parse(p[2]), 0, 0, 0, 0);
+        return DateTime.SpecifyKind(result, DateTimeKind.Local);
     }
 
     public static string ToJalali(DateTime d)
@@ -19,21 +20,17 @@ public class PerformanceService(AppDbContext db)
     }
 
     public async Task<EvaluationPeriod?> CurrentPeriod()
-        => await db.Periods.Where(x => x.IsOpen && x.StartAt <= DateTime.Now)
-            .OrderByDescending(x => x.StartAt).FirstOrDefaultAsync();
+        => await db.Periods.Where(x => x.IsOpen && x.StartAt <= DateTime.Now).OrderByDescending(x => x.StartAt).FirstOrDefaultAsync();
 
     public Task<bool> CanEdit(EvaluationPeriod p)
         => Task.FromResult(p.IsOpen && DateTime.Now >= p.StartAt && DateTime.Now <= p.EndAt);
 
     public async Task<List<Employee>> GetSubordinates(int evaluatorId)
     {
-        var employees = await db.Employees.Where(x => x.IsActive)
-            .Include(x => x.Position).Include(x => x.Unit).AsNoTracking().ToListAsync();
-        var bySupervisor = employees.Where(x => x.SupervisorId.HasValue)
-            .GroupBy(x => x.SupervisorId!.Value).ToDictionary(g => g.Key, g => g.ToList());
+        var employees = await db.Employees.Where(x => x.IsActive).Include(x => x.Position).Include(x => x.Unit).AsNoTracking().ToListAsync();
+        var bySupervisor = employees.Where(x => x.SupervisorId.HasValue).GroupBy(x => x.SupervisorId!.Value).ToDictionary(g => g.Key, g => g.ToList());
         var result = new List<Employee>();
-        var queue = new Queue<int>();
-        queue.Enqueue(evaluatorId);
+        var queue = new Queue<int>(); queue.Enqueue(evaluatorId);
         var visited = new HashSet<int> { evaluatorId };
         while (queue.Count > 0)
         {
@@ -42,8 +39,7 @@ public class PerformanceService(AppDbContext db)
             foreach (var child in children)
             {
                 if (!visited.Add(child.Id)) continue;
-                result.Add(child);
-                queue.Enqueue(child.Id);
+                result.Add(child); queue.Enqueue(child.Id);
             }
         }
         return result.OrderBy(x => x.FullName).ToList();
@@ -55,11 +51,6 @@ public class PerformanceService(AppDbContext db)
     public async Task<bool> CanEvaluate(int evaluatorId, int employeeId)
         => evaluatorId != employeeId && (await GetSubordinates(evaluatorId)).Any(x => x.Id == employeeId);
 
-    /// <summary>
-    /// Only the current evaluator or an evaluator above the current evaluator may
-    /// edit an evaluation. Once an upper-level evaluator takes ownership, the
-    /// previous lower-level evaluator can no longer overwrite that decision.
-    /// </summary>
     public async Task<bool> CanReviewEvaluation(int actorId, Evaluation ev)
     {
         if (!await IsEvaluator(actorId)) return false;
@@ -72,8 +63,7 @@ public class PerformanceService(AppDbContext db)
 
     public async Task<bool> IsAncestor(int ancestorId, int employeeId)
     {
-        var employees = await db.Employees.Where(x => x.IsActive)
-            .Select(x => new { x.Id, x.SupervisorId }).AsNoTracking().ToListAsync();
+        var employees = await db.Employees.Where(x => x.IsActive).Select(x => new { x.Id, x.SupervisorId }).AsNoTracking().ToListAsync();
         var map = employees.ToDictionary(x => x.Id, x => x.SupervisorId);
         var current = employeeId;
         var visited = new HashSet<int>();
