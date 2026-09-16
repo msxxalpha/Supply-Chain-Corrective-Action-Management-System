@@ -1,2 +1,0 @@
-namespace Indamin.Performance.Data;
-public class EvaluatorChangeHistory{public long Id{get;set;}public int EvaluationId{get;set;}public int PreviousEvaluatorId{get;set;}public int NewEvaluatorId{get;set;}public int ChangedBy{get;set;}public DateTime ChangedAt{get;set;}=DateTime.UtcNow;public string Reason{get;set;}="";}
