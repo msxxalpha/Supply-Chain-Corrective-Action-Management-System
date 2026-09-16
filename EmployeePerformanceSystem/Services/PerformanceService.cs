@@ -26,9 +26,9 @@ public class PerformanceService(AppDbContext db)
         => Task.FromResult(p.IsOpen && DateTime.Now >= p.StartAt && DateTime.Now <= p.EndAt);
 
     /// <summary>
-    /// Returns the complete organizational subtree below an evaluator.
-    /// This is intentional: an evaluator who is higher in the hierarchy than another
-    /// evaluator must be able to review/evaluate that evaluator's complete subtree.
+    /// Complete active organizational subtree below an evaluator.
+    /// This enables an evaluator higher in the hierarchy to review the complete
+    /// subtree of a subordinate evaluator, not only the direct report.
     /// </summary>
     public async Task<List<Employee>> GetSubordinates(int evaluatorId)
     {
@@ -55,23 +55,20 @@ public class PerformanceService(AppDbContext db)
         return result.OrderBy(x => x.FullName).ToList();
     }
 
-    public Task<List<Employee>> GetDirectSubordinates(int evaluatorId)
-        => GetSubordinates(evaluatorId).ContinueWith(t => t.Result.Where(x => x.SupervisorId == evaluatorId).ToList());
+    public async Task<List<Employee>> GetDirectSubordinates(int evaluatorId)
+        => (await GetSubordinates(evaluatorId)).Where(x => x.SupervisorId == evaluatorId).ToList();
 
     public async Task<bool> CanEvaluate(int evaluatorId, int employeeId)
-    {
-        if (evaluatorId == employeeId) return false;
-        return (await GetSubordinates(evaluatorId)).Any(x => x.Id == employeeId);
-    }
+        => evaluatorId != employeeId && (await GetSubordinates(evaluatorId)).Any(x => x.Id == employeeId);
 
     /// <summary>
-    /// The current evaluator or any evaluator above the current evaluator in the
-    /// organization tree may review the evaluation. The actor must be an evaluator.
+    /// The current evaluator or any evaluator above the employee in the organization
+    /// tree may review. The actor must itself be an active evaluator.
     /// </summary>
     public async Task<bool> CanReviewEvaluation(int actorId, Evaluation ev)
     {
-        if (actorId == ev.EvaluatorId) return await IsEvaluator(actorId);
         if (!await IsEvaluator(actorId)) return false;
+        if (actorId == ev.EvaluatorId) return true;
         return await IsAncestor(actorId, ev.EmployeeId);
     }
 
