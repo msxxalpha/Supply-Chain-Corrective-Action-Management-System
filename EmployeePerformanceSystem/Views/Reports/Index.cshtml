@@ -1,1 +1,4 @@
-<h2>گزارش‌های عملکرد</h2>
+@model List<Indamin.Performance.Controllers.ReportsController.Row>
+@{ViewData["Title"]="گزارش عملکرد";}
+<div class="mb-3"><h2>گزارش عملکرد</h2><a class="btn btn-success" href="/Reports/Export">خروجی Excel</a></div>
+<div class="cardx"><table class="table"><thead><tr><th>کارمند</th><th>ارزیاب</th><th>واحد</th><th>رده</th><th>امتیاز</th><th>وضعیت</th></tr></thead><tbody>@foreach(var x in Model){<tr><td>@x.Employee</td><td>@x.Evaluator</td><td>@x.Unit</td><td>@x.Position</td><td>@x.Score</td><td>@x.Status</td></tr>}</tbody></table></div>
