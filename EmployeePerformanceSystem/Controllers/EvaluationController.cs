@@ -61,7 +61,8 @@ public class EvaluationController(AppDbContext db, PerformanceService ps, ExcelS
 
         var ev = await db.Evaluations.Include(x => x.Scores)
             .SingleOrDefaultAsync(x => x.PeriodId == p.Id && x.EmployeeId == employee.Id);
-        if (ev == null)
+        var isNew = ev == null;
+        if (isNew)
         {
             ev = new Evaluation
             {
@@ -72,9 +73,8 @@ public class EvaluationController(AppDbContext db, PerformanceService ps, ExcelS
                 Status = EvaluationStatus.Draft
             };
             db.Evaluations.Add(ev);
-            await db.SaveChangesAsync();
         }
-        else if (!await ps.CanReviewEvaluation(actor, ev)) return Forbid();
+        else if (!await ps.CanReviewEvaluation(actor, ev!)) return Forbid();
 
         var qs = await db.Questions.Where(x => x.PositionId == employee.PositionId && x.IsActive)
             .OrderBy(x => x.SortOrder).ToListAsync();
@@ -88,7 +88,7 @@ public class EvaluationController(AppDbContext db, PerformanceService ps, ExcelS
             }
 
             var comment = m.Comments.TryGetValue(q.Id, out var c) ? c?.Trim() : null;
-            var old = ev.Scores.FirstOrDefault(x => x.QuestionId == q.Id);
+            var old = ev!.Scores.FirstOrDefault(x => x.QuestionId == q.Id);
             if (old == null)
             {
                 ev.Scores.Add(new EvaluationScore { QuestionId = q.Id, Score = score, Comment = comment });
@@ -112,11 +112,11 @@ public class EvaluationController(AppDbContext db, PerformanceService ps, ExcelS
 
         if (!ModelState.IsValid)
         {
-            var existing = await db.Evaluations.AsNoTracking().Include(x => x.Scores).SingleAsync(x => x.Id == ev.Id);
-            return View("Form", new FormVm(p, employee, qs, existing));
+            var vmEvaluation = isNew ? null : await db.Evaluations.AsNoTracking().Include(x => x.Scores).SingleAsync(x => x.Id == ev!.Id);
+            return View("Form", new FormVm(p, employee, qs, vmEvaluation));
         }
 
-        if (ev.EvaluatorId != actor)
+        if (ev!.EvaluatorId != actor)
         {
             db.EvaluatorHistory.Add(new EvaluatorChangeHistory
             {
