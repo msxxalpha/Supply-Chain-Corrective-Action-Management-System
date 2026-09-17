@@ -1,5 +1,0 @@
-@model Indamin.Performance.Controllers.HomeController.HomeVm
-@{ViewData["Title"]="داشبورد";}
-<div class="mb-4"><h2>داشبورد</h2><div class="text-muted">خوش آمدید، @Model.Name</div></div>
-<div class="row g-3 mb-4"><div class="col-md-4"><div class="stat"><div class="text-muted">کارکنان تحت پوشش</div><div class="num">@Model.Subordinates</div></div></div><div class="col-md-4"><div class="stat"><div class="text-muted">ارزیابی تکمیل‌شده</div><div class="num">@Model.Completed</div></div></div><div class="col-md-4"><div class="stat"><div class="stat"><div class="text-muted">دوره فعال</div><div class="num">فعال</div></div></div></div></div>
-<div class="cardx"><h5>اقدامات سریع</h5><div class="d-flex gap-2 mt-3"><a class="btn btn-main" href="/Evaluation">لیست کارکنان و ارزیابی</a>@if(User.HasClaim("IsAdmin","1")){<a class="btn btn-outline-primary" href="/Admin/Periods">مدیریت دوره‌ها</a><a class="btn btn-outline-primary" href="/Admin/Employees">مدیریت کارکنان</a>}</div></div>
